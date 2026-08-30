@@ -24,8 +24,10 @@ const viewers = new Map();
 const VIEWER_OFFLINE = 30000;    // 30 秒没上报 → 标记离线
 const VIEWER_KEEP = 300000;      // 离线后保留 5 分钟（让控制中心显示"已离开 XX:XX"）
 
-// 观众端日志目录
-try { fs.mkdirSync(path.join(__dirname, "logs"), { recursive: true }); } catch {}
+// 日志目录：打包后由主进程通过 CINEMA_LOG_DIR 注入（userData），开发时默认项目目录
+// （portable 模式的 __dirname 是临时解压目录，写那里日志重启即丢）
+const LOG_DIR = process.env.CINEMA_LOG_DIR || path.join(__dirname, "logs");
+try { fs.mkdirSync(LOG_DIR, { recursive: true }); } catch {}
 
 setInterval(() => {
   const now = Date.now();
@@ -146,7 +148,7 @@ app.post("/api/report", async (req, res) => {
   if (body.type === "log") {
     const line = `[${new Date().toISOString()}] [${body.level || "info"}] ${body.msg}\n`;
     try {
-      fs.appendFileSync(path.join(__dirname, "logs", "viewer.log"), line);
+      fs.appendFileSync(path.join(LOG_DIR, "viewer.log"), line);
       if (process.env.VIEWER_LOG_CONSOLE) console.log("[viewer-log]", line.trim());
     } catch {}
     return res.json({ ok: true });
@@ -169,7 +171,7 @@ app.post("/api/report", async (req, res) => {
   // 诊断：记录收到观众 stats（供排查观众席显示问题）
   try {
     fs.appendFileSync(
-      path.join(__dirname, "logs", "viewer.log"),
+      path.join(LOG_DIR, "viewer.log"),
       `[${new Date().toISOString()}] [stats] viewerId=${viewerId.slice(0, 8)} client=${stats.client || "?"} loc=${location} delay=${delay}ms ip=${String(ip).slice(0, 15)} ipv4=${bodyIpv4 || "-"}\n`
     );
   } catch {}
@@ -183,7 +185,7 @@ app.post("/api/disconnect", (req, res) => {
     viewers.delete(viewerId);
     try {
       fs.appendFileSync(
-        path.join(__dirname, "logs", "viewer.log"),
+        path.join(LOG_DIR, "viewer.log"),
         `[${new Date().toISOString()}] [disconnect-active] viewerId=${viewerId.slice(0, 8)}\n`
       );
     } catch {}

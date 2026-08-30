@@ -57,8 +57,12 @@ function loadSavedConfig() {
   return {};
 }
 
-// 持久化日志（控制中心 + 关键事件，文件位于 F:\Cinema\logs\app.log）
-const LOG_FILE = path.join(ROOT, "logs", "app.log");
+// 持久化日志：打包后写到 userData（%APPDATA%\BerlinCinema\logs，可写且持久），开发时在项目目录
+// （portable 模式的 app 目录是临时解压目录，写那里日志会丢）
+const LOG_DIR = app.isPackaged
+  ? path.join(app.getPath("userData"), "logs")
+  : path.join(ROOT, "logs");
+const LOG_FILE = path.join(LOG_DIR, "app.log");
 
 function appendLogFile(level, tag, message) {
   try {
@@ -281,7 +285,8 @@ function spawnViewerServerProcess() {
         ELECTRON_RUN_AS_NODE: "1",
         LIVEKIT_URL: CONFIG.livekitUrl,
         LIVEKIT_API_KEY: CONFIG.apiKey,
-        LIVEKIT_API_SECRET: CONFIG.apiSecret
+        LIVEKIT_API_SECRET: CONFIG.apiSecret,
+        CINEMA_LOG_DIR: LOG_DIR   // 让 viewer-server 也把日志写到 userData（打包后）
       }
     }
   );
