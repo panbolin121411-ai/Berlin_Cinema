@@ -29,7 +29,8 @@ async function startShare(withAudio = true) {
     const videoConstraints = {
       frameRate: { ideal: 30, max: 30 },
       width: { ideal: 1920, max: 2560 },
-      height: { ideal: 1080, max: 1440 }
+      height: { ideal: 1080, max: 1440 },
+      degradePreference: "maintain-framerate"   // 保帧率优先，带宽不足降分辨率
     };
 
     const mediaOptions = {

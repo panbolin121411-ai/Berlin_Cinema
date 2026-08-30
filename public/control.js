@@ -304,7 +304,10 @@ async function startBroadcast() {
     const videoConstraints = {
       frameRate: { ideal: 30, max: 30 },
       width: { ideal: 1920, max: 2560 },
-      height: { ideal: 1080, max: 1440 }
+      height: { ideal: 1080, max: 1440 },
+      // 带宽不足时优先保帧率（必要时降分辨率），避免画面卡顿感
+      // （电影/直播场景帧率稳定 > 分辨率稳定）
+      degradePreference: "maintain-framerate"
     };
 
     let stream;

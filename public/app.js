@@ -60,6 +60,7 @@ function attachTrack(track) {
     video = element;
     livekitVideoTrack = track;  // 保留 livekit track 引用（兼容旧调用）
     setupBufferingMonitor(element);   // 监听缓冲事件（卡顿检测）
+    enableRvfMonitor(element);        // 实际渲染帧率检测（rVFC）
     if (qualityOverlay) {         // 显示质量浮层（等首次 sendStatsOnce 后填值）
       qualityOverlay.textContent = "延迟 ···";
       qualityOverlay.className = "";
@@ -255,6 +256,41 @@ async function getViewerStats() {
   } catch (e) {
     return null;
   }
+}
+
+// —— 实际渲染帧率检测（requestVideoFrameCallback，iOS 15.4+/现代浏览器支持）——
+// currentTime 平滑（音频轨驱动）不代表画面帧都渲染了；rVFC 每渲染一帧回调，测真实流畅度
+let rvfcStats = { frames: 0, lastTs: 0, stuckCount: 0, lastReport: 0, active: false };
+function enableRvfMonitor(videoEl) {
+  if (!videoEl || typeof videoEl.requestVideoFrameCallback !== "function") {
+    reportLog("warn", "rvfc: 浏览器不支持 requestVideoFrameCallback");
+    return;
+  }
+  if (rvfcStats.active) return;
+  rvfcStats.active = true;
+  const s = rvfcStats;
+  s.frames = 0; s.lastTs = 0; s.stuckCount = 0; s.lastReport = 0;
+  const onFrame = (now) => {
+    s.frames++;
+    if (s.lastTs) {
+      const gap = now - s.lastTs;
+      if (gap > 150) {   // 帧间隔 >150ms ≈ 画面停 5+ 帧
+        s.stuckCount++;
+        reportLog("warn", `渲染卡顿#${s.stuckCount}: 帧间隔 ${Math.round(gap)}ms (期望 ≤33ms) t=${videoEl.currentTime.toFixed(1)}s`);
+      }
+    }
+    s.lastTs = now;
+    // 每 5 秒汇总实际渲染 fps
+    if (!s.lastReport) s.lastReport = now;
+    if (now - s.lastReport >= 5000) {
+      const elapsed = (now - s.lastReport) / 1000;
+      const fps = s.frames / elapsed;
+      reportLog("info", `实际渲染 ${fps.toFixed(1)}fps / 期望 30 · 卡顿 ${s.stuckCount} 次`);
+      s.frames = 0; s.lastReport = now; s.stuckCount = 0;
+    }
+    videoEl.requestVideoFrameCallback(onFrame);
+  };
+  videoEl.requestVideoFrameCallback(onFrame);
 }
 
 // 观众端：更新视频角落质量浮层（延迟/网络状况），iOS 也能看到自己到服务器的延迟
@@ -511,7 +547,7 @@ async function connect() {
     reportLog("info", "fetch /api/cinema OK, room=" + (data.roomName || ""));
 
     room = new LivekitClient.Room({
-      adaptiveStream: false,   // 观众端不降级，始终满质量接收（用户网络好，避免忽高忽低）
+      adaptiveStream: true,    // 观众端开启自适应：网络抖动时 LiveKit 自动降分辨率/码率保流畅（画面卡顿主因是抖动，降级比卡顿好）
       dynacast: false
     });
 
