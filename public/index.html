@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://* wss://*; img-src 'self' data:; media-src 'self' blob:; worker-src 'self' blob:;">
   <title>倩倩的私人影院</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <style>
@@ -149,6 +150,65 @@
     }
     .controls button.primary:active { filter: brightness(1.15); }
     .controls button.hidden { display: none; }
+
+    /* 开始观看覆盖层（iOS Safari 必须用户手势才能播放带声音视频） */
+    #startOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 10;
+      cursor: pointer;
+    }
+    .start-btn {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #5eead4, #2563eb);
+      box-shadow: 0 8px 28px rgba(94, 234, 212, 0.4), 0 0 0 6px rgba(255, 255, 255, 0.06);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #0a0e14;
+      transition: transform .15s;
+    }
+    .start-btn:active { transform: scale(0.94); }
+    .play-icon { font-size: 38px; line-height: 1; margin-left: 4px; }
+    .start-text {
+      position: absolute;
+      bottom: -32px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+    .start-hint {
+      color: #9aa;
+      font-size: 11px;
+      letter-spacing: 1px;
+    }
+
+    /* 直播质量浮层（视频画面右上角，半透明黑底） */
+    #qualityOverlay {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #4ade80;
+      font-size: 11px;
+      font-family: Consolas, "Courier New", monospace;
+      padding: 5px 9px;
+      border-radius: 6px;
+      z-index: 5;
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+    #qualityOverlay.warn { color: #f5c14a; }
+    #qualityOverlay.bad { color: #f87171; }
   </style>
 </head>
 <body>
@@ -161,9 +221,21 @@
   <div class="player">
     <video id="video" autoplay playsinline muted></video>
 
+    <!-- 直播质量浮层（观众端：显示自己到服务器的延迟） -->
+    <div id="qualityOverlay" style="display:none">延迟 ···</div>
+
     <div id="waiting">
       <div class="logo">倩倩的私人影院</div>
       <p>等待直播</p>
+    </div>
+
+    <!-- 开始观看按钮（iOS Safari 必须在用户手势后才能播放带声音视频） -->
+    <div id="startOverlay" style="display:none">
+      <div class="start-btn" id="startBtn">
+        <div class="play-icon">▶</div>
+        <div class="start-text">点击开始观看</div>
+      </div>
+      <div class="start-hint">iOS 需要点一下才能播放声音</div>
     </div>
 
     <div id="error"></div>
@@ -177,7 +249,10 @@
     <button id="fullscreen">⤢ 全屏</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.umd.min.js"></script>
+  <!-- 调试条：始终显示当前上报状态（底部黑底，醒目，排查 iOS fetch 问题） -->
+  <div id="debugInfo" style="position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.88);color:#5eead4;font-size:11px;line-height:1.5;padding:6px 12px;z-index:99;word-break:break-all;font-family:Consolas,monospace;border-top:1px solid #2a3140;text-align:center;">等待连接…</div>
+
+  <script src="/vendor/livekit-client.umd.min.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

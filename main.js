@@ -57,6 +57,17 @@ function loadSavedConfig() {
   return {};
 }
 
+// 持久化日志（控制中心 + 关键事件，文件位于 F:\Cinema\logs\app.log）
+const LOG_FILE = path.join(ROOT, "logs", "app.log");
+
+function appendLogFile(level, tag, message) {
+  try {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+    const line = `[${new Date().toISOString()}] [${level || "info"}] [${tag || ""}] ${message}\n`;
+    fs.appendFileSync(LOG_FILE, line);
+  } catch {}
+}
+
 function saveConfigToDisk(data) {
   try {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2));
@@ -116,86 +127,185 @@ function envCheck() {
   };
 }
 
-function checkPort(port) {
-  return new Promise(resolve => {
-    const server = http.createServer();
-
-    server.once("error", () => {
-      resolve(true);
+// 用 HTTP 探测判断 viewer-server 是否在跑（无副作用，比 createServer+listen 可靠）
+async function isPortServing(port) {
+  try {
+    const r = await fetch(`http://127.0.0.1:${port}/api/cinema`, {
+      signal: AbortSignal.timeout(1500)
     });
+    return r.status === 200;
+  } catch {
+    return false;
+  }
+}
 
-    server.once("listening", () => {
-      server.close(() => resolve(false));
+// 杀掉监听指定端口的进程（Windows：netstat 找 PID + taskkill）
+function killPortProcess(port) {
+  try {
+    const out = spawnSync("netstat", ["-ano"], { encoding: "utf8" });
+    const pids = new Set();
+    // 精确匹配本地监听地址 ":port"（后跟空白），避免误杀监听 30000/30001 等端口的进程
+    const portRe = new RegExp(":" + port + "\\s");
+    out.stdout.split("\n").forEach(line => {
+      if (portRe.test(line) && line.includes("LISTENING")) {
+        const m = line.trim().match(/(\d+)\s*$/);
+        if (m) pids.add(m[1]);
+      }
     });
+    pids.forEach(pid => {
+      try {
+        spawnSync("taskkill", ["/PID", pid, "/T", "/F"], { windowsHide: true });
+        log(`已结束占用 3000 端口的旧进程 (PID ${pid})`, "warning");
+      } catch {}
+    });
+    return pids.size > 0;
+  } catch {
+    return false;
+  }
+}
 
-    server.listen(port, "127.0.0.1");
-  });
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// 探测 3000 端口的 viewer-server 是否是最新代码（对比 viewer-server.mjs 文件 mtime）
+// mtime 一致 = 代码没改 = 直接复用（秒开）；mtime 不同 = 代码改了 = 杀重启加载新代码
+async function isNewViewerServer() {
+  try {
+    const expected = fs.statSync(CONFIG.serverFile).mtimeMs;
+    const r = await fetch(`http://127.0.0.1:${CONFIG.port || 3000}/api/version`, {
+      signal: AbortSignal.timeout(1500)
+    });
+    const d = await r.json();
+    return d.ok && Math.abs(d.mtime - expected) < 1000;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureViewerServerRunning() {
+  // 已经在跑 + 是最新代码 → 复用
+  if (await isPortServing(CONFIG.port) && await isNewViewerServer()) {
+    log("预启动：viewer-server 已是最新代码，复用", "success");
+    return true;
+  }
+  // 在跑但是旧代码（无 /api/version 路由）→ 杀掉重启加载新代码
+  if (await isPortServing(CONFIG.port)) {
+    log("预启动：旧版 viewer-server（无 /api/version 路由），重启加载最新代码", "warning");
+    killPortProcess(CONFIG.port);
+    await sleep(1000);
+  }
+  // 没在跑或刚杀掉：启动
+  if (cinemaProcess) {
+    cinemaProcess = null;  // 引用失效，等 exit 事件
+  }
+  if (!fs.existsSync(CONFIG.serverFile)) {
+    log(`没有找到 ${CONFIG.serverFile}，无法预启动影院服务`, "error");
+    return false;
+  }
+  log("预启动本地影院服务...");
+  spawnViewerServerProcess();
+  // 短超时（10 秒）等待就绪
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (await isPortServing(CONFIG.port)) {
+      log("预启动：viewer-server 已就绪", "success");
+      return true;
+    }
+  }
+  log("预启动：viewer-server 启动慢（10s 后未就绪，不影响开播）", "warning");
+  return true;
+}
+
+// 轮询等待 viewer-server 就绪（最多 attempts 次，每次间隔 500ms）
+async function waitForPortServing(attempts) {
+  for (let i = 0; i < attempts; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (await isPortServing(CONFIG.port)) return true;
+  }
+  return false;
 }
 
 async function startCinemaServer() {
-  const occupied = await checkPort(CONFIG.port);
-
-  if (occupied) {
-    log(`3000 端口已经在使用，跳过 Node.js 启动`, "success");
+  // 已在跑（预启动过）→ 直接复用，秒开
+  if (await isPortServing(CONFIG.port)) {
+    // 在跑但是旧代码（无 /api/version 路由）→ 杀掉重启加载新代码，
+    // 避免控制中心加载到旧版页面/旧接口
+    if (!(await isNewViewerServer())) {
+      log("本地影院服务为旧版本，重启加载最新代码", "warning");
+      killPortProcess(CONFIG.port);
+      await sleep(1000);
+      if (cinemaProcess) cinemaProcess = null;  // 引用失效，等 exit 事件
+      spawnViewerServerProcess();
+      if (await waitForPortServing(10)) {
+        log("本地影院服务重启成功", "success");
+        return true;
+      }
+      log("本地影院服务重启慢（不阻塞开播）", "warning");
+      return true;
+    }
+    log("本地影院服务已就绪", "success");
     return true;
   }
-
-  const serverFile = CONFIG.serverFile;
-
-  if (!fs.existsSync(serverFile)) {
-    log(`没有找到 ${serverFile}，无法自动启动影院服务`, "error");
-    return false;
+  // 没在跑：启动
+  if (cinemaProcess) {
+    cinemaProcess = null;  // 引用失效，等 exit 事件
   }
+  if (!fs.existsSync(CONFIG.serverFile)) {
+    log(`没有找到 ${CONFIG.serverFile}`, "error");
+    return true;  // 不阻塞开播（推流不依赖 viewer-server）
+  }
+  log("启动本地影院服务...");
+  spawnViewerServerProcess();
+  // 短超时（5 秒）等待启动，**不阻塞开播**——超时也不 return false
+  if (await waitForPortServing(10)) {
+    log("本地影院服务启动成功", "success");
+    return true;
+  }
+  log("本地影院服务启动慢（不阻塞开播，5 秒后仍未就绪）", "warning");
+  return true;  // 不阻塞开播——viewer-server 启动慢不影响推流
+}
 
-  log("正在启动本地影院服务...");
-
+// 实际 spawn viewer-server 的辅助函数（预启动和 startCinemaServer 共用）
+function spawnViewerServerProcess() {
+  if (cinemaProcess) return;  // 已经在跑
   cinemaProcess = spawn(
     process.execPath,
-    [serverFile],
+    [CONFIG.serverFile],
     {
       cwd: ROOT,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      // Electron 主进程里 spawn 自己运行 .mjs 必须加此标记
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
-        // 把 GUI/config.json 里的 LiveKit 配置注入子进程，
-        // 否则 livekit-service.mjs 读的是系统环境变量（可能为空）
         LIVEKIT_URL: CONFIG.livekitUrl,
         LIVEKIT_API_KEY: CONFIG.apiKey,
         LIVEKIT_API_SECRET: CONFIG.apiSecret
       }
     }
   );
-
   cinemaProcess.stdout.on("data", data => {
     const text = data.toString().trim();
     if (text) log(text);
   });
-
   cinemaProcess.stderr.on("data", data => {
     const text = data.toString().trim();
     if (text) log(text, "warning");
   });
-
-  cinemaProcess.on("exit", code => {
-    cinemaProcess = null;
+  const child = cinemaProcess;
+  // spawn 失败必须有 error 监听，否则触发 uncaught exception 导致主进程崩溃
+  child.on("error", err => {
+    if (cinemaProcess === child) cinemaProcess = null;
+    log("影院 Node 服务启动失败：" + (err && err.message || err), "error");
+    send("status");
+  });
+  child.on("exit", code => {
+    // 只在引用仍指向该子进程时清空，避免旧进程晚到的 exit 误清新进程引用
+    if (cinemaProcess === child) cinemaProcess = null;
     log(`影院 Node 服务退出，代码：${code}`, "warning");
     send("status");
   });
-
-  for (let i = 0; i < 30; i++) {
-    await new Promise(r => setTimeout(r, 500));
-
-    if (await checkPort(CONFIG.port)) {
-      log("本地影院服务启动成功", "success");
-      return true;
-    }
-  }
-
-  log("等待本地影院服务超时", "error");
-  return false;
 }
 
 async function getLiveKitAPI() {
@@ -354,6 +464,11 @@ function startCloudflared() {
 
     cloudflaredBuffer += text;
 
+    // 防止长时间运行内存无限增长：只保留最近 64KB
+    if (cloudflaredBuffer.length > 65536) {
+      cloudflaredBuffer = cloudflaredBuffer.slice(-65536);
+    }
+
     const matches = cloudflaredBuffer.match(
       /https:\/\/[a-z0-9-]+\.trycloudflare\.com/gi
     );
@@ -378,8 +493,15 @@ function startCloudflared() {
   cloudflaredProcess.stdout.on("data", handleOutput);
   cloudflaredProcess.stderr.on("data", handleOutput);
 
-  cloudflaredProcess.on("exit", code => {
-    cloudflaredProcess = null;
+  const child = cloudflaredProcess;
+  child.on("error", err => {
+    if (cloudflaredProcess === child) cloudflaredProcess = null;
+    log("Cloudflare Tunnel 启动失败：" + (err && err.message || err), "error");
+    send("status");
+  });
+  child.on("exit", code => {
+    // 只在引用仍指向该子进程时清空，避免旧进程晚到的 exit 误清新进程引用
+    if (cloudflaredProcess === child) cloudflaredProcess = null;
 
     if (publicUrl) {
       log("Cloudflare Tunnel 已停止", "warning");
@@ -467,17 +589,16 @@ function startAll() {
 function stopAll() {
   stopCloudflared();
 
-  if (cinemaProcess) {
-    forceKill(cinemaProcess);
-    cinemaProcess = null;
-  }
+  // viewer-server 常驻：不杀，下次开播直接复用（秒开）。
+  // 只在 app 退出（before-quit）或代码更新（mtime 变化）时才重启它。
+  // if (cinemaProcess) { forceKill(cinemaProcess); cinemaProcess = null; }
 
-  log("Berlin Cinema 已停止", "warning");
+  log("Berlin Cinema 已停止（影院服务保持运行，下次秒开）", "warning");
   send("status");
 }
 
 async function status() {
-  const portRunning = await checkPort(CONFIG.port);
+  const portRunning = await isPortServing(CONFIG.port);
 
   const livekit = await getLiveKitStatus().catch(
     error => ({
@@ -502,9 +623,9 @@ async function createWindow() {
 
   mainWindow = new BrowserWindow({
     width: 400,
-    height: 640,
+    height: 660,           // 更紧凑（用户反馈 720 还长）
     minWidth: 340,
-    minHeight: 520,
+    minHeight: 540,
     backgroundColor: "#07090d",
     title: "Berlin Cinema",
     icon: path.join(ROOT, "icon.png"),
@@ -517,6 +638,8 @@ async function createWindow() {
       sandbox: false
     }
   });
+  // 强制设高度（覆盖上次会话保存的尺寸）
+  mainWindow.setSize(400, 660);
 
   mainWindow.loadURL("http://localhost:3000/control");
 
@@ -612,7 +735,7 @@ ipcMain.handle("get-config", () => {
   };
 });
 
-ipcMain.handle("save-config", (_, cfg) => {
+ipcMain.handle("save-config", async (_, cfg) => {
   const { livekitUrl, apiKey, apiSecret } = cfg || {};
 
   CONFIG.livekitUrl = normalizeHttpUrl(livekitUrl || "");
@@ -625,7 +748,76 @@ ipcMain.handle("save-config", (_, cfg) => {
     apiSecret: CONFIG.apiSecret
   });
 
+  // viewer-server 使用 spawn 时的旧 env；保存新配置后重启它，让新凭据立即生效
+  // （否则运行中的服务仍用旧 Key/Secret 签发观众 token，LiveKit 会拒绝连接）
+  if (ok) {
+    try {
+      if (await isPortServing(CONFIG.port)) {
+        log("LiveKit 配置已更新，重启影院服务以应用新配置...", "warning");
+        killPortProcess(CONFIG.port);
+        await sleep(1000);
+        if (cinemaProcess) cinemaProcess = null;  // 引用失效，等 exit 事件
+        spawnViewerServerProcess();
+      }
+    } catch {}
+  }
+
   return { success: ok };
+});
+
+// 获取观众上报数据（通过主进程转发，绕开渲染进程 file:// 页面的 CORS/协议限制）
+ipcMain.handle("get-viewers", async () => {
+  try {
+    const res = await fetch(`http://127.0.0.1:${CONFIG.port || 3000}/api/viewers`, {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!res.ok) {
+      appendLogFile("warn", "get-viewers", `HTTP ${res.status}`);
+      return { ok: false, viewers: [] };
+    }
+    const data = await res.json();
+    return data;
+  } catch (e) {
+    appendLogFile("error", "get-viewers", `fetch 失败: ${e.message}`);
+    return { ok: false, viewers: [], error: e.message };
+  }
+});
+
+// 写日志到 F:\Cinema\logs\app.log
+ipcMain.handle("log-to-file", (_, { level, tag, message } = {}) => {
+  appendLogFile(level, tag, message);
+  return true;
+});
+
+// 读日志文件（最近内容）
+ipcMain.handle("read-log", () => {
+  try {
+    if (fs.existsSync(LOG_FILE)) {
+      const stat = fs.statSync(LOG_FILE);
+      // 超过 1MB 只读末尾 200KB
+      if (stat.size > 1024 * 1024) {
+        const fd = fs.openSync(LOG_FILE, "r");
+        const buf = Buffer.alloc(200 * 1024);
+        fs.readSync(fd, buf, 0, buf.length, stat.size - buf.length);
+        fs.closeSync(fd);
+        return buf.toString("utf8");
+      }
+      return fs.readFileSync(LOG_FILE, "utf8");
+    }
+  } catch {}
+  return "";
+});
+
+// 在资源管理器中打开日志文件
+ipcMain.handle("open-log", () => {
+  try {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+    if (!fs.existsSync(LOG_FILE)) appendLogFile("info", "init", "log file created");
+    shell.openPath(LOG_FILE);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 ipcMain.handle("restart-tunnel", async () => {
@@ -655,6 +847,14 @@ if (!gotSingleInstanceLock) {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // 预启动 viewer-server（不等用户点开播就启动后台进程）
+  // 用户点开播时直接复用 → 0 秒等待，不会有超时
+  setTimeout(() => {
+    ensureViewerServerRunning().catch(err =>
+      log("预启动影院服务失败：" + err.message, "error")
+    );
+  }, 500);
 
   // 屏幕共享支持：handler 返回 desktopCapturer 的真实源
   session.defaultSession.setDisplayMediaRequestHandler(
@@ -708,6 +908,9 @@ app.on("before-quit", () => {
 
   if (cloudflaredProcess) forceKill(cloudflaredProcess);
   if (cinemaProcess) forceKill(cinemaProcess);
+
+  // 兜底：按端口杀所有残留进程（即使 cinemaProcess 引用丢失/手动启动的旧进程）
+  killPortProcess(CONFIG.port);
 
   cloudflaredProcess = null;
   cinemaProcess = null;

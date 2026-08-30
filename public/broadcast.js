@@ -28,8 +28,8 @@ async function startShare(withAudio = true) {
 
     const videoConstraints = {
       frameRate: { ideal: 30, max: 30 },
-      width: { ideal: 2560, max: 3840 },
-      height: { ideal: 1440, max: 2160 }
+      width: { ideal: 1920, max: 2560 },
+      height: { ideal: 1080, max: 1440 }
     };
 
     const mediaOptions = {
@@ -38,8 +38,7 @@ async function startShare(withAudio = true) {
         echoCancellation: false,   // 关闭回声消除（电影不需要，且会破坏音质）
         noiseSuppression: false,   // 关闭噪声抑制（保留原始音质）
         autoGainControl: false,    // 关闭自动增益（解决"声音忽大忽小"）
-        sampleRate: 48000,         // 48kHz 采样率
-        channelCount: 2            // 立体声
+        sampleRate: 48000          // 48kHz 采样率（不强制声道数，跟随设备）
       } : false
     };
     if (withAudio) {
@@ -90,7 +89,7 @@ async function startShare(withAudio = true) {
         videoCodec: "h264",       // H.264 兼容 iOS/iPadOS Safari
         simulcast: false,         // 单观众无需多路
         screenShareEncoding: {
-          maxBitrate: 12_000_000,  // 12 Mbps（1440p30 高质量）
+          maxBitrate: 16_000_000,  // 16 Mbps（上行充足，保证 60fps 满帧率流畅）
           maxFramerate: 30
         }
       });
@@ -101,8 +100,7 @@ async function startShare(withAudio = true) {
       await room.localParticipant.publishTrack(atrack, {
         name: "audio",
         source: LK.Track.Source.ScreenShareAudio,
-        audioPreset: { maxBitrate: 128000 },  // 128kbps Opus 高音质
-        forceStereo: false                      // 非强制立体声
+        audioPreset: { maxBitrate: 128000 }  // 128kbps Opus 高音质（声道跟随捕获）
       });
       setStatus("● 直播中（含音频）", "live");
     } else {

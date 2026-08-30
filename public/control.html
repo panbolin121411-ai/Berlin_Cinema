@@ -2,10 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta
-    http-equiv="Content-Security-Policy"
-    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' wss://* https://*; img-src 'self' data:;"
-  >
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' wss://* https://*; img-src 'self' data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Berlin Cinema</title>
   <link rel="stylesheet" href="./control.css">
@@ -15,48 +12,82 @@
   <div class="app">
 
     <div class="titlebar">
-      <div class="drag-region"></div>
+      <div class="drag-region">
+        <span class="dot" id="globalDot"></span>
+        <span id="globalStatus">未开播</span>
+        <span class="uptime" id="uptime"></span>
+      </div>
+      <button class="titlebar-btn" id="btnMenu" title="菜单">≡</button>
       <button class="titlebar-btn" id="btnMin" title="最小化">─</button>
       <button class="titlebar-btn close" id="btnClose" title="关闭">×</button>
     </div>
 
-    <div class="status-row">
-      <span class="dot" id="globalDot"></span>
-      <span id="globalStatus">未开播</span>
+    <div class="menu-popup" id="menuPopup" style="display:none">
+      <button class="menu-item" id="menuSettings">⚙ 设置</button>
+      <button class="menu-item" id="menuLog">📋 详细日志</button>
     </div>
 
-    <button class="big-btn" id="startBtn">▶ 一键开播</button>
-    <button class="big-btn stop" id="stopBtn" style="display:none">■ 停止</button>
+    <div class="content">
 
-    <div class="url-box">
-      <div class="label">观影网址</div>
-      <div class="url" id="publicUrl">等待开播…</div>
-      <button class="copy" id="copyBtn" disabled>复制网址</button>
+      <!-- 主视图（开播/网址/数据/观众） -->
+      <div id="viewHome">
+        <button class="big-btn" id="startBtn">▶ 一键开播</button>
+        <button class="big-btn stop" id="stopBtn" style="display:none">■ 停止</button>
+
+        <div class="block url-block">
+          <div class="block-label">
+            观影网址
+            <button class="copy-inline" id="copyBtn" disabled>复制</button>
+          </div>
+          <div class="url" id="publicUrl">等待开播…</div>
+        </div>
+
+        <div class="block">
+          <div class="block-label">📊 推流数据</div>
+          <div class="stats-row"><span>RTT</span><span id="sRtt">—</span></div>
+          <div class="stats-row"><span>丢包</span><span id="sLoss">—</span></div>
+          <div class="stats-row"><span>帧率</span><span id="sFps">—</span></div>
+          <div class="stats-row"><span>分辨率</span><span id="sRes">—</span></div>
+          <div class="stats-row"><span>码率</span><span id="sBitrate">—</span></div>
+        </div>
+
+        <div class="block">
+          <div class="block-label">👥 观众</div>
+          <div id="viewersList"></div>
+        </div>
+
+        <div class="block logs-block">
+          <div class="block-label">📝 日志</div>
+          <div class="logs" id="logs"></div>
+        </div>
+      </div>
+
+      <!-- 设置视图（点击 ≡ → 设置 切换过来） -->
+      <div id="viewSettings" class="hidden">
+        <button class="back-btn" id="backBtn">← 返回</button>
+        <div class="block settings-block">
+          <div class="block-label">⚙ LiveKit 设置</div>
+          <div class="field">
+            <label>LiveKit URL</label>
+            <input id="livekitUrl" type="text" placeholder="https://xxx.livekit.cloud" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>API Key</label>
+            <input id="apiKey" type="text" placeholder="API Key" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>API Secret</label>
+            <input id="apiSecret" type="password" placeholder="API Secret" autocomplete="off">
+          </div>
+          <button class="save" id="saveBtn">保存设置</button>
+        </div>
+      </div>
+
     </div>
-
-    <button class="settings-toggle" id="settingsToggle">⚙ 设置</button>
-
-    <div class="settings" id="settings" style="display:none">
-      <div class="field">
-        <label>LiveKit URL</label>
-        <input id="livekitUrl" type="text" placeholder="https://xxx.livekit.cloud" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>API Key</label>
-        <input id="apiKey" type="text" placeholder="API Key" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>API Secret</label>
-        <input id="apiSecret" type="password" placeholder="API Secret" autocomplete="off">
-      </div>
-      <button class="save" id="saveBtn">保存设置</button>
-    </div>
-
-    <div class="logs" id="logs"></div>
 
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.umd.min.js"></script>
+  <script src="./vendor/livekit-client.umd.min.js"></script>
   <script src="./control.js"></script>
 </body>
 </html>

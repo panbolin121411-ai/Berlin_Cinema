@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld("cinema", {
   getBroadcastInfo: () => ipcRenderer.invoke("get-broadcast-info"),
   getConfig: () => ipcRenderer.invoke("get-config"),
   saveConfig: cfg => ipcRenderer.invoke("save-config", cfg),
+  getViewers: () => ipcRenderer.invoke("get-viewers"),
+  logToFile: data => ipcRenderer.invoke("log-to-file", data),
+  readLog: () => ipcRenderer.invoke("read-log"),
+  openLog: () => ipcRenderer.invoke("open-log"),
 
   onLog: callback => {
     ipcRenderer.on("log", (_, data) => callback(data));

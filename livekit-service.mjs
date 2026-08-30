@@ -111,7 +111,8 @@ export async function getViewerToken() {
     roomJoin: true,
     room: ROOM_NAME,
     canPublish: false,
-    canSubscribe: true
+    canSubscribe: true,
+    canPublishData: true   // 允许观众上报网络统计给主播端
   });
 
   return await token.toJwt();
