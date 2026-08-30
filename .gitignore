@@ -1,0 +1,19 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+
+# 第三方二进制（运行时需手动下载 cloudflared）
+cloudflared/
+*.exe
+
+# 生成图标（源文件为 public/icon.svg）
+icon.png
+
+# 本地配置
+config.json
+
+# 系统文件
+Thumbs.db
+.DS_Store

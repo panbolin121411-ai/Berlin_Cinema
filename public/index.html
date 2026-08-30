@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>倩倩的私人影院</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      color: #e6e9ef;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse 80% 60% at 15% 10%, rgba(59, 130, 246, 0.18), transparent 55%),
+        radial-gradient(ellipse 70% 55% at 85% 90%, rgba(139, 92, 246, 0.16), transparent 55%),
+        linear-gradient(135deg, #0a0e1a 0%, #101828 45%, #0a0e14 100%);
+      background-attachment: fixed;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      padding: 30px 16px;
+    }
+
+    /* 品牌区 */
+    .brand { text-align: center; }
+    .brand-main {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(120deg, #f0f4ff 0%, #93c5fd 55%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-sub {
+      margin-top: 6px;
+      font-size: 11px;
+      letter-spacing: 5px;
+      color: #5b6472;
+      font-weight: 600;
+    }
+
+    /* 视频卡片 */
+    .player {
+      width: min(840px, 94vw);
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 24px 70px rgba(0,0,0,0.65),
+        0 0 60px rgba(59, 130, 246, 0.10);
+    }
+
+    .player video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    /* 等待层 */
+    #waiting {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #5b6472;
+      pointer-events: none;
+    }
+    #waiting .logo {
+      font-size: 15px;
+      letter-spacing: 4px;
+      color: #8b93a1;
+    }
+    #waiting p { font-size: 13px; }
+
+    /* 错误条 */
+    #error {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      background: rgba(200, 0, 0, 0.85);
+      border-radius: 999px;
+      font-size: 12px;
+      display: none;
+      max-width: 90%;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* 底部控制行 */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status {
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: #8a8f98;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-right: 8px;
+    }
+    .status .dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3f4a; transition: all .3s; }
+    .status.live .dot { background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+    .status.live { color: #4ade80; }
+
+    .controls button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 22px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      cursor: pointer;
+      color: #fff;
+      background: rgba(255,255,255,0.09);
+      border: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .controls button:active { background: rgba(255,255,255,0.18); }
+    .controls button.primary {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
+      border: none;
+    }
+    .controls button.primary:active { filter: brightness(1.15); }
+    .controls button.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <div class="brand">
+    <div class="brand-main">倩倩的私人影院</div>
+    <div class="brand-sub">BERLIN CINEMA</div>
+  </div>
+
+  <div class="player">
+    <video id="video" autoplay playsinline muted></video>
+
+    <div id="waiting">
+      <div class="logo">倩倩的私人影院</div>
+      <p>等待直播</p>
+    </div>
+
+    <div id="error"></div>
+  </div>
+
+  <div class="controls">
+    <span class="status" id="status">
+      <span class="dot"></span>
+      <span id="statusText">OFFLINE</span>
+    </span>
+    <button id="fullscreen">⤢ 全屏</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

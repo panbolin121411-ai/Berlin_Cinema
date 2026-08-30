@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berlin Cinema · 主播</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; min-height: 100%;
+      background: #07090d;
+      color: #e6e9ef;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; padding: 24px;
+    }
+    #status {
+      font-size: 13px; font-weight: 600;
+      padding: 8px 18px; border-radius: 999px;
+      background: #12161f; color: #8aa;
+      transition: all .3s;
+      max-width: 90%;
+      text-align: center;
+    }
+    #status.live { background: #13241d; color: #4ade80; }
+    #status.error { background: #241418; color: #f87171; }
+    .btn {
+      font-size: 15px; font-weight: 600;
+      padding: 13px 30px; border: none; border-radius: 12px;
+      cursor: pointer; letter-spacing: 1px; transition: all .2s;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #3b82f6; }
+    .btn-danger { background: #b91c1c; color: #fff; display: none; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-secondary { background: #1c2533; color: #cbd5e1; display: none; }
+    .btn-secondary:hover { background: #243040; }
+    .hint {
+      font-size: 12px; color: #7b8494;
+      text-align: center; line-height: 1.7;
+    }
+    .hint b { color: #f5c14a; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="status">未开始</div>
+    <button class="btn btn-primary" id="startBtn">▶ 开始共享屏幕</button>
+    <button class="btn btn-secondary" id="videoOnlyBtn">仅共享画面</button>
+    <button class="btn btn-danger" id="stopBtn">■ 停止共享</button>
+    <div class="hint">
+      选 <b>整个屏幕</b>，勾「<b>共享系统音频</b>」
+    </div>
+  </div>
+  <script src="/broadcast.js"></script>
+</body>
+</html>

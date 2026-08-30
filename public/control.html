@@ -1,0 +1,62 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' wss://* https://*; img-src 'self' data:;"
+  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berlin Cinema</title>
+  <link rel="stylesheet" href="./control.css">
+</head>
+<body>
+
+  <div class="app">
+
+    <div class="titlebar">
+      <div class="drag-region"></div>
+      <button class="titlebar-btn" id="btnMin" title="最小化">─</button>
+      <button class="titlebar-btn close" id="btnClose" title="关闭">×</button>
+    </div>
+
+    <div class="status-row">
+      <span class="dot" id="globalDot"></span>
+      <span id="globalStatus">未开播</span>
+    </div>
+
+    <button class="big-btn" id="startBtn">▶ 一键开播</button>
+    <button class="big-btn stop" id="stopBtn" style="display:none">■ 停止</button>
+
+    <div class="url-box">
+      <div class="label">观影网址</div>
+      <div class="url" id="publicUrl">等待开播…</div>
+      <button class="copy" id="copyBtn" disabled>复制网址</button>
+    </div>
+
+    <button class="settings-toggle" id="settingsToggle">⚙ 设置</button>
+
+    <div class="settings" id="settings" style="display:none">
+      <div class="field">
+        <label>LiveKit URL</label>
+        <input id="livekitUrl" type="text" placeholder="https://xxx.livekit.cloud" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input id="apiKey" type="text" placeholder="API Key" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>API Secret</label>
+        <input id="apiSecret" type="password" placeholder="API Secret" autocomplete="off">
+      </div>
+      <button class="save" id="saveBtn">保存设置</button>
+    </div>
+
+    <div class="logs" id="logs"></div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.22.1/dist/livekit-client.umd.min.js"></script>
+  <script src="./control.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#0a0e14"/>
+    </linearGradient>
+    <linearGradient id="tri" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景圆角方形 -->
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <!-- 镜头细环 -->
+  <circle cx="128" cy="128" r="78" fill="none" stroke="#334155" stroke-width="5"/>
+
+  <!-- 播放三角形 -->
+  <path d="M106 94 L168 128 L106 162 Z" fill="url(#tri)"/>
+
+  <!-- 胶片齿孔 -->
+  <g fill="#64748b">
+    <rect x="38" y="80" width="12" height="16" rx="4"/>
+    <rect x="38" y="112" width="12" height="16" rx="4"/>
+    <rect x="38" y="144" width="12" height="16" rx="4"/>
+    <rect x="206" y="80" width="12" height="16" rx="4"/>
+    <rect x="206" y="112" width="12" height="16" rx="4"/>
+    <rect x="206" y="144" width="12" height="16" rx="4"/>
+  </g>
+</svg>
